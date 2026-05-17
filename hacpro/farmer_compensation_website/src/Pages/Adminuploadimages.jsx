@@ -12,6 +12,7 @@ const AdminUploadImage = () => {
   const [farmerData, setFarmerData] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [prediction, setPrediction] = useState(null); 
+  const [totalLandArea, setTotalLandArea] = useState("");
   const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -68,8 +69,15 @@ const AdminUploadImage = () => {
       return;
     }
 
+    const landArea = parseFloat(totalLandArea);
+    if (!Number.isFinite(landArea) || landArea <= 0) {
+      alert("Please enter the farmer's total land area in square meters.");
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("image", images[0]); 
+    formData.append("total_land_area", String(landArea));
+    images.forEach((file) => formData.append("images", file));
 
     setLoading(true);
     try {
@@ -106,8 +114,6 @@ const handleGeneratePDF = async () => {
 
   const leftX = 15;
   let y = 40;
-  const midLine = pageWidth / 2; 
-
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.text("Farmer Details:", leftX, y);
@@ -137,42 +143,83 @@ const handleGeneratePDF = async () => {
 
   doc.setFontSize(12);
   doc.setFont("helvetica", "normal");
-  doc.text(`Damage Percentage: ${prediction.damage_percent}%`, leftX, y);
+  doc.text(
+    `Total Damaged Area: ${prediction.total_absolute_damage_sq_m} sq m`,
+    leftX,
+    y
+  );
+  y += 8;
+  doc.text(
+    `Damage Percentage: ${prediction.final_damage_percentage ?? prediction.damage_percent}%`,
+    leftX,
+    y
+  );
+  y += 8;
+  doc.text(`Images Processed: ${prediction.images_processed ?? images.length}`, leftX, y);
 
-  const rightX = midLine + 10;
-  let imgY = 40;
-  const imgWidth = pageWidth / 2 - 30; 
-  const imgHeight = 68; 
+  const perImageResults = prediction.per_image || [];
+  const imgWidth = (pageWidth - 40) / 3;
+  const imgHeight = 55;
+  const marginX = 15;
 
   const toBase64 = async (url) => {
-    const blob = await fetch(url).then(res => res.blob());
-    return new Promise(resolve => {
+    const blob = await fetch(url).then((res) => res.blob());
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
       reader.readAsDataURL(blob);
     });
   };
 
-  const addImageWithLabel = async (label, imgUrl) => {
+  const addImageAt = async (label, imgUrl, x, yPos) => {
     if (!imgUrl) return;
     const imgData = await toBase64(imgUrl);
+    const format = String(imgData).includes("image/png") ? "PNG" : "JPEG";
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(label, rightX, imgY);
-    imgY += 6;
-
-    doc.addImage(imgData, "JPEG", rightX, imgY, imgWidth, imgHeight);
-    imgY += imgHeight + 15;
+    doc.setFontSize(10);
+    doc.text(label, x, yPos);
+    doc.addImage(imgData, format, x, yPos + 5, imgWidth, imgHeight);
   };
 
-  if (images.length > 0) {
-    await addImageWithLabel("Original Image", URL.createObjectURL(images[0]));
-  }
-  await addImageWithLabel("Overlay Image", prediction.overlay_image);
-  await addImageWithLabel("Masked Image", prediction.mask_image);
+  for (let i = 0; i < perImageResults.length; i++) {
+    doc.addPage();
+    let rowY = 25;
 
- 
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Drone Image ${i + 1} of ${perImageResults.length}`, marginX, rowY);
+    rowY += 10;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Damaged area: ${perImageResults[i].absolute_damage_sq_m} sq m | Altitude: ${perImageResults[i].altitude_meters} m`,
+      marginX,
+      rowY
+    );
+    rowY += 12;
+
+    const originalUrl =
+      images[i] ? URL.createObjectURL(images[i]) : null;
+
+    await addImageAt("Original", originalUrl, marginX, rowY);
+    await addImageAt(
+      "Overlay",
+      perImageResults[i].overlay_image,
+      marginX + imgWidth + 5,
+      rowY
+    );
+    await addImageAt(
+      "Mask",
+      perImageResults[i].mask_image,
+      marginX + (imgWidth + 5) * 2,
+      rowY
+    );
+
+    if (originalUrl) URL.revokeObjectURL(originalUrl);
+  }
+
   doc.save(`Farmer_Report_${aadhar}.pdf`);
 
  try {
@@ -304,6 +351,18 @@ const handleGeneratePDF = async () => {
         
         <div className="bg-white p-6 rounded-xl shadow-md mb-6">
           <label className="block text-lg font-medium mb-2">
+            Total Land Area (sq meters)
+          </label>
+          <input
+            type="number"
+            min="1"
+            step="any"
+            value={totalLandArea}
+            onChange={(e) => setTotalLandArea(e.target.value)}
+            placeholder="e.g. 10000"
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-400 mb-6"
+          />
+          <label className="block text-lg font-medium mb-2">
             Upload Drone Images (Max 5)
           </label>
           <input
@@ -339,19 +398,47 @@ const handleGeneratePDF = async () => {
         {prediction && (
           <div className="bg-white p-6 rounded-xl shadow-md mb-6">
             <h2 className="text-xl font-semibold mb-4">Prediction Results</h2>
-            <p><strong>Damage Percent:</strong> {prediction.damage_percent}%</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-              <img
-                src={prediction.mask_image}
-                alt="Mask"
-                className="rounded-lg shadow-md"
-              />
-              <img
-                src={prediction.overlay_image}
-                alt="Overlay"
-                className="rounded-lg shadow-md"
-              />
-            </div>
+            <p><strong>Total Damaged Area:</strong> {prediction.total_absolute_damage_sq_m} sq m</p>
+            <p><strong>Damage Percent:</strong> {prediction.final_damage_percentage ?? prediction.damage_percent}%</p>
+            <p><strong>Images Processed:</strong> {prediction.images_processed}</p>
+
+            {(prediction.per_image || []).map((item, idx) => (
+              <div key={idx} className="mt-6 border-t pt-6">
+                <h3 className="text-lg font-semibold mb-2">Drone Image {idx + 1}</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Damaged: {item.absolute_damage_sq_m} sq m · Coverage:{" "}
+                  {item.image_coverage_area_sq_m} sq m · Altitude: {item.altitude_meters} m
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {images[idx] && (
+                    <div>
+                      <p className="text-sm font-medium mb-1">Original</p>
+                      <img
+                        src={URL.createObjectURL(images[idx])}
+                        alt={`Original ${idx + 1}`}
+                        className="rounded-lg shadow-md w-full"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium mb-1">Overlay</p>
+                    <img
+                      src={item.overlay_image}
+                      alt={`Overlay ${idx + 1}`}
+                      className="rounded-lg shadow-md w-full"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium mb-1">Mask</p>
+                    <img
+                      src={item.mask_image}
+                      alt={`Mask ${idx + 1}`}
+                      className="rounded-lg shadow-md w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
