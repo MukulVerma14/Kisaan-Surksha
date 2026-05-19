@@ -30,13 +30,40 @@ router.post("/login", (req, res) => {
 
 router.get("/farmer/:aadhar", async (req, res) => {
   try {
-    const farmer = await Farmer.findOne({ aadhar: req.params.aadhar });
+    const aadharNumber = req.params.aadhar;
+    console.log(`🔍 Searching for farmer with Aadhaar: ${aadharNumber}`);
+    
+    const farmer = await Farmer.findOne({ aadhar: aadharNumber });
+    console.log(`📊 Farmer found:`, farmer ? "Yes" : "No");
 
     if (!farmer) {
+      console.log(`❌ Farmer not found for Aadhaar: ${aadharNumber}`);
       return res.status(404).json({ message: "Farmer not found" });
     }
 
-    res.json(farmer); 
+    // Ensure all fields are included, especially for multilingual data
+    const farmerData = {
+      _id: farmer._id,
+      aadhar: farmer.aadhar,
+      dob: farmer.dob,
+      name: farmer.name || "",
+      landReg: farmer.landReg || "",
+      city: farmer.city || "",
+      state: farmer.state || "",
+      reason: farmer.reason || "",
+      totalLandArea: farmer.totalLandArea ?? null,
+      preferredLanguage: farmer.preferredLanguage || "en",
+      images: farmer.images || [],
+      droneImages: farmer.droneImages || [],
+      pdfGenerated: farmer.pdfGenerated || false,
+      pdfPath: farmer.pdfPath || "",
+      createdAt: farmer.createdAt,
+      updatedAt: farmer.updatedAt,
+    };
+
+    // Set proper content type for Unicode support
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json(farmerData); 
   } catch (error) {
     console.error("Admin fetch error:", error);
     res.status(500).json({ message: "Server error" });

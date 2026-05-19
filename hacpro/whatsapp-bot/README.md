@@ -1,6 +1,6 @@
 # 🌾 KisaanSuraksha WhatsApp Bot
 
-A comprehensive WhatsApp bot for Indian farmers that enables registration, profile management, and AI-powered agricultural assistance through WhatsApp. Built with Node.js, Express, Twilio, MongoDB, and Google Gemini AI.
+A comprehensive WhatsApp bot for Indian farmers that enables registration, profile management, and AI-powered agricultural assistance through WhatsApp. Built with Node.js, Express, Twilio, MongoDB, **Groq AI** (chat), and **Sarvam AI** (voice transcription).
 
 ## 📋 Table of Contents
 
@@ -47,12 +47,14 @@ KisaanSuraksha WhatsApp Bot is an intelligent chatbot designed to help Indian fa
      - City/Village
      - State
      - Crop damage reason/description
+     - **Total farm land area (square meters)** — used for damage % calculation in the admin ML pipeline
    - Data confirmation before submission
    - Auto-update existing farmer records
 
 ### 2. **AI-Powered Chat Assistant**
-   - Conversational AI using Google Gemini 2.x models
-   - Responds in Hinglish (Hindi-English mix)
+   - Conversational AI using **Groq** (Llama models)
+   - Voice notes transcribed with **Sarvam AI**, then answered via Groq
+   - Multilingual responses (English, Hindi, Telugu) based on farmer preference
    - Context-aware responses based on farmer profile
    - Handles questions about:
      - Crop damage compensation
@@ -103,8 +105,8 @@ KisaanSuraksha WhatsApp Bot is an intelligent chatbot designed to help Indian fa
          ├──────────────┐
          ▼              ▼
 ┌──────────────┐  ┌──────────────┐
-│  Controller  │  │   Gemini AI  │
-│  (Flow Logic)│  │   Service    │
+│  Controller  │  │ Groq + Sarvam│
+│  (Flow Logic)│  │   Services   │
 └──────────────┘  └──────────────┘
          │
          ▼
@@ -187,9 +189,12 @@ TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_PHONE_NUMBER=whatsapp:+14155238886
 
-# Google Gemini API
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.5-flash
+# Groq AI (chat responses)
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# Sarvam AI (voice note transcription)
+SARVAM_API_KEY=your_sarvam_api_key
 
 # Server Configuration
 PORT=5002
@@ -228,6 +233,8 @@ You should see:
      city: String,
      state: String,
      reason: String,
+     totalLandArea: Number,  // sq meters
+     preferredLanguage: String,
      images: [String],
      droneImages: [String]
    }
@@ -255,24 +262,21 @@ You should see:
    - Webhook URL: `https://your-url.com/whatsapp/incoming`
    - Method: `POST`
 
-### Google Gemini API Setup
+### Groq API Setup (Chat AI)
 
-1. **Get API Key**:
-   - Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Sign in with Google account
-   - Click "Create API Key"
-   - Copy the API key
-
-2. **Verify Model Access**:
+1. **Get API Key**: Sign up at [Groq Console](https://console.groq.com/) and create an API key.
+2. **Verify models**:
    ```bash
-   node utils/listGeminiModels.js
+   node utils/listGroqModels.js
+   node utils/testGroqModels.js
    ```
-   This will list all available Gemini models for your API key.
+3. **Configure model** (optional): Set `GROQ_MODEL` in `.env` (default: `llama-3.3-70b-versatile`).
 
-3. **Configure Model** (optional):
-   - Default: `gemini-2.5-flash`
-   - Available models: `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-2.5-pro`
-   - Update `GEMINI_MODEL` in `.env` if needed
+### Sarvam API Setup (Voice Notes)
+
+1. **Get API Key**: Sign up at [Sarvam AI](https://www.sarvam.ai/) and enable Speech-to-Text.
+2. Set `SARVAM_API_KEY` in `.env`.
+3. Farmers can send WhatsApp voice notes; the bot transcribes them and replies using Groq in the farmer's preferred language.
 
 ### ngrok Setup (Local Development)
 
@@ -400,7 +404,9 @@ whatsapp-bot/
 │
 ├── services/
 │   ├── twilioService.js         # Twilio messaging service
-│   └── geminiService.js         # Gemini AI integration service
+│   ├── groqService.js           # Groq chat AI
+│   ├── sarvamService.js         # Sarvam voice transcription
+│   └── geminiService.js         # Deprecated re-export (use groqService)
 │
 ├── utils/
 │   ├── listGeminiModels.js      # Utility to list available Gemini models
@@ -432,8 +438,12 @@ whatsapp-bot/
 - Send message functionality
 - Phone number formatting
 
-#### `services/geminiService.js`
-- Gemini AI client setup
+#### `services/groqService.js`
+- Groq chat completions for farmer Q&A
+#### `services/sarvamService.js`
+- Sarvam speech-to-text for voice notes
+#### `services/geminiService.js` (deprecated)
+- Re-exports from `groqService.js`
 - Model selection and fallback
 - Prompt engineering
 - Response generation
@@ -551,12 +561,16 @@ State 6: State Collection
 
 State 7: Reason Collection
   └─ Input: Crop damage description
-  └─ Action: Show confirmation
   └─ Next: State 8
 
-State 8: Confirmation
+State 8: Total Farm Area
+  └─ Input: Land area in square meters (e.g. 10000)
+  └─ Action: Show confirmation summary
+  └─ Next: State 9
+
+State 9: Confirmation
   └─ Input: "yes" or "no"
-  └─ Action: Save to DB / Restart
+  └─ Action: Save to DB (including totalLandArea) / Restart
   └─ Next: Chat Mode (if yes)
 ```
 
@@ -568,7 +582,7 @@ Chat Mode: Active
   └─ Action: 
      1. Load farmer profile from DB
      2. Build context with profile + history
-     3. Send to Gemini API
+     3. Send to Groq API
      4. Get AI response
      5. Send to user
      6. Update conversation history
@@ -577,53 +591,26 @@ Chat Mode: Active
 
 ## 🧠 AI Integration
 
-### Gemini AI Service
+### Groq (Text Chat)
 
-The bot uses Google Gemini 2.x models for AI-powered conversations.
+- Service: `services/groqService.js`
+- Uses Groq OpenAI-compatible chat API
+- Default models: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` (fallback)
+- Includes farmer profile context (name, location, **totalLandArea**, crop issue)
+- Supports English, Hindi, and Telugu based on `preferredLanguage`
+- Integrates live soil moisture/temperature from weather API when available
 
-#### Model Selection
+### Sarvam (Voice Notes)
 
-The service tries models in this order:
-1. `gemini-2.5-flash` (default, fastest)
-2. `gemini-2.0-flash`
-3. `gemini-2.5-pro` (more capable)
-4. `gemini-2.0-flash-001`
-5. `gemini-2.5-flash-lite`
-6. `gemini-2.0-flash-lite`
-7. `gemini-2.0-flash-lite-001`
-
-#### Prompt Engineering
-
-The AI is configured with a system instruction:
-```
-"You are KisaanSuraksha Mitra, an agriculture support assistant for Indian 
-farmers. Respond in friendly Hinglish (mix of Hindi and English) using simple 
-words. Provide empathetic, practical advice referencing Indian farming context. 
-Always add a brief reminder that final decisions should involve local agriculture 
-officers or trusted experts. Keep answers within 6-8 sentences maximum."
-```
-
-#### Context Building
-
-Each AI request includes:
-- Farmer profile information
-- Conversation history (last 10 messages)
-- Current question
-
-#### Fallback Mechanism
-
-1. **SDK Approach**: Uses `@google/generative-ai` package
-2. **REST API v1**: Direct API calls to v1 endpoint
-3. **REST API v1beta**: Fallback to v1beta endpoint
+- Service: `services/sarvamService.js`
+- Transcribes WhatsApp audio via Sarvam Speech-to-Text (`saarika:flash`)
+- Detected language is logged but **user's registered language preference is respected** for replies
 
 ### Testing AI Integration
 
 ```bash
-# List available models
-node utils/listGeminiModels.js
-
-# Test model responses
-node utils/testGeminiModels.js
+node utils/listGroqModels.js
+node utils/testGroqModels.js
 ```
 
 ## 💻 Development
@@ -649,8 +636,9 @@ MONGO_URI=your_mongodb_uri
 TWILIO_ACCOUNT_SID=your_account_sid
 TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_PHONE_NUMBER=whatsapp:+14155238886
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.5-flash
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+SARVAM_API_KEY=your_sarvam_api_key
 PORT=5002
 ```
 
@@ -712,7 +700,7 @@ node utils/listGeminiModels.js
    heroku config:set TWILIO_ACCOUNT_SID=your_sid
    heroku config:set TWILIO_AUTH_TOKEN=your_token
    heroku config:set TWILIO_PHONE_NUMBER=whatsapp:+1234567890
-   heroku config:set GEMINI_API_KEY=your_key
+   heroku config:set GROQ_API_KEY=your_key SARVAM_API_KEY=your_key
    heroku config:set PORT=5002
    ```
 
@@ -833,14 +821,14 @@ curl -X POST http://localhost:5002/whatsapp/incoming \
 - Ensure WhatsApp access is enabled
 - Verify phone number is correct (no extra characters)
 
-#### 4. Gemini API Not Working
+#### 4. Groq / Sarvam API Not Working
 
 **Symptoms**: `AI assistant is not configured yet` or `404 Not Found`
 
 **Solutions**:
-- Verify `GEMINI_API_KEY` in `.env`
-- Check API key has access to Gemini models
-- List available models: `node utils/listGeminiModels.js`
+- Verify `GROQ_API_KEY` and `SARVAM_API_KEY` in `.env`
+- List Groq models: `node utils/listGroqModels.js`
+- Test Groq: `node utils/testGroqModels.js`
 - Verify model name is correct
 - Check API quota/limits
 

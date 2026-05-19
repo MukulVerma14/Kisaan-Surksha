@@ -40,6 +40,9 @@ const AdminUploadImage = () => {
 
       if (res.ok) {
         setFarmerData(data);
+        if (data.totalLandArea) {
+          setTotalLandArea(String(data.totalLandArea));
+        }
       } else {
         alert(data.message || "Farmer not found");
         setFarmerData(null);
@@ -310,6 +313,9 @@ const handleGeneratePDF = async () => {
             <p><strong>City:</strong> {farmerData.city}</p>
             <p><strong>State:</strong> {farmerData.state}</p>
             <p><strong>Land Reg. No.:</strong> {farmerData.landReg}</p>
+            {farmerData.totalLandArea && (
+              <p><strong>Total Farm Area:</strong> {farmerData.totalLandArea} sq m</p>
+            )}
             <p><strong>Reason:</strong> {farmerData.reason}</p>
 
             {farmerData.images && farmerData.images.length > 0 && (

@@ -9,6 +9,7 @@ const FarmerSchema = new mongoose.Schema({
   city: { type: String },
   state: { type: String },
   reason: { type: String },
+  totalLandArea: { type: Number },
   images: [{ type: String }],
     droneImages: [String], 
     pdfGenerated: { type: Boolean, default: false },
