@@ -31,8 +31,7 @@ DEFAULT_ALTITUDE_METERS = 50.0
 MAX_DAMAGE_PERCENTAGE = 100.0
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
-MODEL_PATH = os.path.join(PROJECT_ROOT, "crop_damage_unet_model.keras")
+MODEL_PATH = os.path.join(SCRIPT_DIR, "crop_damage_unet_model.keras")
 INPUT_SIZE = (128, 128)
 THRESHOLD = 0.1
 ZERO_DAMAGE_TOL = 0.01
