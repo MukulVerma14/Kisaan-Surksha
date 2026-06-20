@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LayoutDashboard, Upload, FileText, LogOut } from "lucide-react";
+import API_BASE_URL from "../api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ const AdminDashboard = () => {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/admin/stats");
+        const res = await fetch(`${API_BASE_URL}/api/admin/stats`);
         if (!res.ok) {
           const errData = await res.json();
           setError(errData.message || "Failed to fetch stats");

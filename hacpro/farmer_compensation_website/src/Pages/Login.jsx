@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import bgImage from "../assets/bgfarmerdashboard.png";
 import Header from "../Components/Header";
 import loginImage from "../assets/farmer.png";
+import API_BASE_URL from "../api";
 
 const Login = () => {
   const [aadhar, setAadhar] = useState("");
@@ -16,7 +17,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aadhar, dob }),

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LayoutDashboard, Upload, FileText, LogOut, Search } from "lucide-react";
 import axios from "axios";
 import { jsPDF } from "jspdf"; 
+import API_BASE_URL from "../api";
 
 const AdminUploadImage = () => {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ const AdminUploadImage = () => {
     }
 
     try {
-      const res = await fetch(`http://localhost:5000/admin/farmer/${aadhar}`);
+      const res = await fetch(`${API_BASE_URL}/admin/farmer/${aadhar}`);
       const data = await res.json();
 
       if (res.ok) {
@@ -84,7 +85,7 @@ const AdminUploadImage = () => {
 
     setLoading(true);
     try {
-      const res = await axios.post("http://localhost:5000/api/admin/run-ml", formData, {
+      const res = await axios.post(`${API_BASE_URL}/api/admin/run-ml`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setPrediction(res.data); 
@@ -227,7 +228,7 @@ const handleGeneratePDF = async () => {
 
  try {
     const token = localStorage.getItem("adminToken"); 
-    await fetch("http://localhost:5000/api/admin/mark-pdf-generated", {
+    await fetch(`${API_BASE_URL}/api/admin/mark-pdf-generated`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

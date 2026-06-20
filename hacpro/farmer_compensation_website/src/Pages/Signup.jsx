@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import bgImage from "../assets/farmerlogo.png";
 import authimage from "../assets/adhaarlogo.png";
+import API_BASE_URL from "../api";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const handleGetOtp = async (e) => {
   }
 
   try {
-    const res = await fetch("http://localhost:5000/auth/signup/send-otp", {
+    const res = await fetch(`${API_BASE_URL}/auth/signup/send-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ aadhar: aadhaar, dob }),
@@ -49,7 +50,7 @@ const handleGetOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/auth/signup/verify-otp", {
+      const res = await fetch(`${API_BASE_URL}/auth/signup/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aadhar: aadhaar, dob, otp }),

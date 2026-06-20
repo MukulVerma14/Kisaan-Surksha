@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import Navbar from "../Components/Navbar";
 import farmerdashboardbg from "../assets/bgfarmerdashboard.png";
+import API_BASE_URL from "../api";
 
 export default function FarmerDashboard() {
   const [formData, setFormData] = useState({
@@ -31,7 +32,7 @@ export default function FarmerDashboard() {
       if (!token) return;
       try {
         console.log("🔑 Token being sent (fetchData):", token);
-        const res = await fetch("http://localhost:5000/dashboard/get", {
+        const res = await fetch(`${API_BASE_URL}/dashboard/get`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -95,7 +96,7 @@ export default function FarmerDashboard() {
         formData.images.map(convertToBase64)
       );
 
-      const res = await fetch("http://localhost:5000/dashboard/update", {
+      const res = await fetch(`${API_BASE_URL}/dashboard/update`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
